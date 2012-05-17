@@ -1,0 +1,3 @@
+[submodule "wp-xmlrpc-modernization"]
+	path = wp-xmlrpc-modernization
+	url = git://github.com/maxcutler/wp-xmlrpc-modernization.git
