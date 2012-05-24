@@ -15,5 +15,9 @@ include_once( 'wp-xmlrpc-modernization/wp-xmlrpc-modernization.php' );
 include_once( 'camayak-admin-notices.php' );
 $camayak_admin_notices = new camayak_admin_notices();
 
+// Add additional XML-RPC methods
+include_once( 'camayak-xmlrpc.php' );
+$camayak_xmlrpc = new camayak_xmlrpc();
+
 // Initialize updater
 include_once( 'camayak-updater.php' );
