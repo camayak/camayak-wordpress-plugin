@@ -18,3 +18,6 @@ $camayak_admin_notices = new camayak_admin_notices();
 // Add additional XML-RPC methods
 include_once( 'camayak-xmlrpc.php' );
 $camayak_xmlrpc = new camayak_xmlrpc();
+
+// Load the XML-RPC De-whitespacer plugin
+include_once( 'xmlrpc-dewhitespacer/xmlrpc-dewhitespacer.php' );
