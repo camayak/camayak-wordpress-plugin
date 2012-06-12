@@ -9,6 +9,10 @@ This plugin facilitates publishing and archiving functionality of the Camayak.co
 
 == Changelog ==
 
+= 1.0.4 =
+
+* Added xmlrpc-dewhitespacer plugin.
+
 = 1.0.3 =
 
 * Removed GitHub updater temporarily.
