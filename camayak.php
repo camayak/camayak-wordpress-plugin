@@ -21,3 +21,6 @@ $camayak_xmlrpc = new camayak_xmlrpc();
 
 // Load the XML-RPC De-whitespacer plugin
 include_once( 'xmlrpc-dewhitespacer/xmlrpc-dewhitespacer.php' );
+
+// Load the XML-RPC De-invalidchar plugin
+include_once( 'xmlrpc-deinvalidchar/xmlrpc-deinvalidchar.php' );
