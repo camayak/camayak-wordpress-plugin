@@ -3,7 +3,7 @@
 /*
  * Plugin Name: Camayak
  * Description: This plugin facilitates publishing and archiving functionality of the <a href="http://www.camayak.com">Camayak service</a>.
- * Version: 1.0.4
+ * Version: 1.0.5
  * Author: Camayak
  * Author URI: http://www.camayak.com/
  */
@@ -21,3 +21,6 @@ $camayak_xmlrpc = new camayak_xmlrpc();
 
 // Load the XML-RPC De-whitespacer plugin
 include_once( 'xmlrpc-dewhitespacer/xmlrpc-dewhitespacer.php' );
+
+// Load the XML-RPC De-invalidchar plugin
+include_once( 'xmlrpc-deinvalidchar/xmlrpc-deinvalidchar.php' );
