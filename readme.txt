@@ -1,5 +1,5 @@
 === Camayak ===
-Contributors: maxcutler
+Contributors: maxcutler, picklepete
 Tags: camayak
 Requires at least: 3.3
 Tested up to: 3.4
@@ -8,6 +8,10 @@ Stable tag: trunk
 This plugin facilitates publishing and archiving functionality of the Camayak.com service.
 
 == Changelog ==
+
+= 1.0.5 =
+
+* Added xmlrpc-deinvalidchar plugin.
 
 = 1.0.4 =
 
