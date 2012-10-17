@@ -9,6 +9,10 @@ This plugin facilitates publishing and archiving functionality of the Camayak.co
 
 == Changelog ==
 
+= 1.0.6 =
+
+* Overriding wp.editPost until it's possible to edit a post with a thumbnail again.
+
 = 1.0.5 =
 
 * Added xmlrpc-deinvalidchar plugin.

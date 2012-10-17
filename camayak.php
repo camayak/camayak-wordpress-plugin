@@ -3,7 +3,7 @@
 /*
  * Plugin Name: Camayak
  * Description: This plugin facilitates publishing and archiving functionality of the <a href="http://www.camayak.com">Camayak service</a>.
- * Version: 1.0.5
+ * Version: 1.0.6
  * Author: Camayak
  * Author URI: http://www.camayak.com/
  */
