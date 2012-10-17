@@ -57,6 +57,13 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 			$methods['wp.getMediaLibrary'] = array( &$this, 'wxm_wp_getMediaLibrary' );
 		}
 
+		// Until WordPress ticket #22204 has been resolved, we'll need to override
+		// the default wp.editPost method with our own. The only difference, is that
+		// `wxm_insert_post` is called instead of `_insert_post`. This is due to a
+		// bug in set_post_thumbnail which has existed since WordPress 3.4.
+		// @link http://core.trac.wordpress.org/ticket/22204
+		$methods['wp.editPost'] = array( &$this, 'wxm_wp_editPost' );
+
 		// array_merge will take the values defined in later arguments, so
 		// the plugin will not overwrite any methods defined by WP core
 		// (i.e., plugin will be forward-compatible with future releases of WordPress
@@ -1026,8 +1033,9 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 			// empty value deletes, non-empty value adds/updates
 			if ( ! $post_data['post_thumbnail'] )
 				delete_post_thumbnail( $post_ID );
-			elseif ( ! set_post_thumbnail( $post_ID, $post_data['post_thumbnail'] ) )
+			elseif ( ! get_post( absint( $post_data['post_thumbnail'] ) ) )
 				return new IXR_Error( 404, __( 'Invalid attachment ID.' ) );
+			set_post_thumbnail( $post_ID, $post_data['post_thumbnail'] );
 			unset( $content_struct['post_thumbnail'] );
 		}
 
@@ -1198,7 +1206,7 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 		$this->escape( $post );
 		$merged_content_struct = array_merge( $post, $content_struct );
 
-		$retval = $this->_insert_post( $user, $merged_content_struct );
+		$retval = $this->wxm_insert_post( $user, $merged_content_struct );
 		if ( $retval instanceof IXR_Error )
 			return $retval;
 
