@@ -2,12 +2,16 @@
 Contributors: maxcutler, picklepete
 Tags: camayak
 Requires at least: 3.3
-Tested up to: 3.4
+Tested up to: 3.5
 Stable tag: trunk
 
 This plugin facilitates publishing and archiving functionality of the Camayak.com service.
 
 == Changelog ==
+
+= 1.0.7 =
+
+* Upgrading to `wp-xmlrpc-modernization` v0.9 which fixes some bugs and aligns methods to 3.5 core.
 
 = 1.0.6 =
 

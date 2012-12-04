@@ -10,9 +10,6 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 		// hook filter to add the new methods after the existing ones are added in the parent constructor
 		add_filter( 'xmlrpc_methods' , array( &$this, 'wxm_xmlrpc_methods' ) );
 
-		// patch wp.uploadFile to return ID
-		add_filter( 'wp_handle_upload', array( &$this, 'wxm_handle_upload' ) );
-
 		// add new options
 		add_filter( 'xmlrpc_blog_options', array( &$this, 'wxm_blog_options' ) );
 
@@ -28,7 +25,8 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 		$new_methods['wp.deleteUser']       = array( &$this, 'wp_deleteUser' );
 		$new_methods['wp.getUser']          = array( &$this, 'wp_getUser' );
 		$new_methods['wp.getUsers']         = array( &$this, 'wp_getUsers' );
-		$new_methods['wp.getUserInfo']      = array( &$this, 'wp_getUserInfo' );
+		$new_methods['wp.getProfile']       = array( &$this, 'wp_getProfile' );
+		$new_methods['wp.editProfile']      = array( &$this, 'wp_editProfile' );
 
 		// custom post type management
 		$new_methods['wp.newPost']          = array( &$this, 'wp_newPost' );
@@ -38,6 +36,8 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 		$new_methods['wp.getPosts']         = array( &$this, 'wp_getPosts' );
 		$new_methods['wp.getPostType']      = array( &$this, 'wp_getPostType' );
 		$new_methods['wp.getPostTypes']     = array( &$this, 'wp_getPostTypes' );
+		$new_methods['wp.getRevisions']     = array( &$this, 'wp_getRevisions' );
+		$new_methods['wp.restoreRevision']  = array( &$this, 'wp_restoreRevision' );
 
 		// custom taxonomy management
 		$new_methods['wp.newTerm']          = array( &$this, 'wp_newTerm' );
@@ -56,13 +56,16 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 			$methods['wp.getMediaItem'] = array( &$this, 'wxm_wp_getMediaItem' );
 			$methods['wp.getMediaLibrary'] = array( &$this, 'wxm_wp_getMediaLibrary' );
 		}
+		if ( $version < 3.5 ) {
+			// for pre-3.5, explicitly override the core implementation of uploads and posts
+			$methods['wp.uploadFile'] = array( &$this, 'wxm_wp_uploadFile' );
+			$methods['metaWeblog.newMediaObject'] = array( &$this, 'wxm_wp_uploadFile' );
 
-		// Until WordPress ticket #22204 has been resolved, we'll need to override
-		// the default wp.editPost method with our own. The only difference, is that
-		// `wxm_insert_post` is called instead of `_insert_post`. This is due to a
-		// bug in set_post_thumbnail which has existed since WordPress 3.4.
-		// @link http://core.trac.wordpress.org/ticket/22204
-		$methods['wp.editPost'] = array( &$this, 'wxm_wp_editPost' );
+			$methods['wp.newPost'] = array( &$this, 'wxm_wp_newPost' );
+			$methods['wp.editPost'] = array( &$this, 'wxm_wp_editPost' );
+			$methods['wp.getPosts'] = array( &$this, 'wxm_wp_getPosts' );
+			$methods['wp.getPost'] = array( &$this, 'wxm_wp_getPost' );
+		}
 
 		// array_merge will take the values defined in later arguments, so
 		// the plugin will not overwrite any methods defined by WP core
@@ -109,14 +112,7 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 	 * @return array The prepared user data
 	 */
 	protected function wxm_prepare_user( $user, $fields ) {
-		$contact_methods = _wp_get_user_contactmethods();
-
-		$user_contacts = array();
-		foreach ( $contact_methods as $key => $value ) {
-			$user_contacts[$key] = $user->$key;
-		}
-
-		$_user = array( 'user_id' => $user->ID );
+		$_user = array( 'user_id' => strval( $user->ID ) );
 
 		$user_fields = array(
 			'username'          => $user->user_login,
@@ -129,15 +125,12 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 			'nicename'          => $user->user_nicename,
 			'url'               => $user->user_url,
 			'display_name'      => $user->display_name,
-			'capabilities'      => $user->wp_capabilities,
-			'user_level'        => $user->wp_user_level,
-			'user_contacts'     => $user_contacts
+			'roles'             => $user->roles,
 		);
 
 		if ( in_array( 'all', $fields ) ) {
 			$_user = array_merge( $_user, $user_fields );
-		}
-		else {
+		} else {
 			if ( in_array( 'basic', $fields ) ) {
 				$basic_fields = array( 'username', 'email', 'registered', 'display_name', 'nicename' );
 				$fields = array_merge( $fields, $basic_fields );
@@ -206,7 +199,11 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 			'post_password'     => $post['post_password'],
 			'post_excerpt'      => $post['post_excerpt'],
 			'post_content'      => $post['post_content'],
+			'post_parent'       => strval( $post['post_parent'] ),
+			'post_mime_type'    => $post['post_mime_type'],
 			'link'              => post_permalink( $post['ID'] ),
+			'guid'              => $post['guid'],
+			'menu_order'        => intval( $post['menu_order'] ),
 			'comment_status'    => $post['comment_status'],
 			'ping_status'       => $post['ping_status'],
 			'sticky'            => ( $post['post_type'] === 'post' && is_sticky( $post['ID'] ) ),
@@ -725,9 +722,7 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 	 *  - 'nicename'
 	 *  - 'url'
 	 *  - 'display_name'
-	 *  - 'capabilities'
-	 *  - 'user_level'
-	 *  - 'user_contacts'
+	 *  - 'roles'
 	 */
 	function wxm_wp_getUser( $args ) {
 		if ( ! $this->minimum_args( $args, 4 ) )
@@ -750,24 +745,23 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 
 		do_action( 'xmlrpc_call', 'wp.getUser' );
 
+		if ( ! current_user_can( 'edit_user', $user_id ) )
+			return new IXR_Error( 401, __( 'Sorry, you cannot edit users.' ) );
+
 		$user_data = get_userdata( $user_id );
 
 		if ( ! $user_data )
 			return new IXR_Error( 404, __( 'Invalid user ID' ) );
 
-		if ( ! ( $user_id == $user->ID || current_user_can( 'edit_users' ) ) )
-			return new IXR_Error( 401, __( 'Sorry, you cannot edit users.' ) );
-
-		$user = $this->_prepare_user( $user_data, $fields );
-
-		return $user;
+		return $this->_prepare_user( $user_data, $fields );
 	}
 
 	/**
 	 * Retrieve users.
 	 *
 	 * The optional $filter parameter modifies the query used to retrieve users.
-	 * Accepted keys are 'number' (default: 50), 'offset' (default: 0), and 'role'.
+	 * Accepted keys are 'number' (default: 50), 'offset' (default: 0), 'role',
+	 * 'who', 'orderby', and 'order'.
 	 *
 	 * The optional $fields parameter specifies what fields will be included
 	 * in the response array.
@@ -797,23 +791,27 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 		if ( isset( $args[4] ) )
 			$fields = $args[4];
 		else
-			$fields = apply_filters( 'xmlrpc_default_user_fields', array( 'basic' ), 'wp.getUsers' );
+			$fields = apply_filters( 'xmlrpc_default_user_fields', array( 'all' ), 'wp.getUsers' );
 
 		if ( ! $user = $this->login( $username, $password ) )
 			return $this->error;
 
 		do_action( 'xmlrpc_call', 'wp.getUsers' );
 
-		if ( ! current_user_can( 'edit_users' ) )
-			return new IXR_Error( 401, __( 'Sorry, you cannot edit users.' ) );
+		if ( ! current_user_can( 'list_users' ) )
+			return new IXR_Error( 401, __( 'Sorry, you cannot list users.' ) );
 
-		$query = array();
-
-		// only retrieve IDs since wp_getUser will ignore anything else
-		$query['fields'] = array( 'ID' );
+		$query = array( 'fields' => 'all_with_meta' );
 
 		$query['number'] = ( isset( $filter['number'] ) ) ? absint( $filter['number'] ) : 50;
 		$query['offset'] = ( isset( $filter['offset'] ) ) ? absint( $filter['offset'] ) : 0;
+
+		if ( isset( $filter['orderby'] ) ) {
+			$query['orderby'] = $filter['orderby'];
+
+			if ( isset( $filter['order'] ) )
+				$query['order'] = $filter['order'];
+		}
 
 		if ( isset( $filter['role'] ) ) {
 			if ( get_role( $filter['role'] ) === null )
@@ -822,13 +820,17 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 			$query['role'] = $filter['role'];
 		}
 
+		if ( isset( $filter['who'] ) ) {
+			$query['who'] = $filter['who'];
+		}
+
 		$users = get_users( $query );
 
 		$_users = array();
 		foreach ( $users as $user_data ) {
-			$_users[] = $this->_prepare_user( get_userdata( $user_data->ID ), $fields );
+			if ( current_user_can( 'edit_user', $user_data->ID ) )
+				$_users[] = $this->_prepare_user( $user_data, $fields );
 		}
-
 		return $_users;
 	}
 
@@ -843,7 +845,7 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 	 *  - array   $fields optional
 	 * @return array (@see wp_getUser)
 	 */
-	function wxm_wp_getUserInfo( $args ) {
+	function wxm_wp_getProfile( $args ) {
 		if ( ! $this->minimum_args( $args, 3 ) )
 			return $this->error;
 
@@ -856,17 +858,94 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 		if ( isset( $args[3] ) )
 			$fields = $args[3];
 		else
-			$fields = apply_filters( 'xmlrpc_default_user_fields', array( 'all' ), 'wp.getUserInfo' );
+			$fields = apply_filters( 'xmlrpc_default_user_fields', array( 'all' ), 'wp.getProfile' );
 
 		if ( ! $user = $this->login( $username, $password ) )
 			return $this->error;
 
-		do_action( 'xmlrpc_call', 'wp.getUserInfo' );
+		do_action( 'xmlrpc_call', 'wp.getProfile' );
+
+		if ( ! current_user_can( 'edit_user', $user->ID ) )
+			return new IXR_Error( 401, __( 'Sorry, you cannot edit your profile.' ) );
 
 		$user_data = get_userdata( $user->ID );
-		$user = $this->_prepare_user( $user_data, $fields );
 
-		return $user;
+		return $this->_prepare_user( $user_data, $fields );
+	}
+
+	/**
+	 * Edit user's profile.
+	 *
+	 * @uses wp_update_user()
+	 * @param array $args Method parameters. Contains:
+	 *  - int     $blog_id
+	 *  - string  $username
+	 *  - string  $password
+	 *  - array   $content_struct
+	 *      It can optionally contain:
+	 *      - 'first_name'
+	 *      - 'last_name'
+	 *      - 'website'
+	 *      - 'display_name'
+	 *      - 'nickname'
+	 *      - 'nicename'
+	 *      - 'bio'
+	 * @return bool True, on success.
+	 */
+	function wxm_wp_editProfile( $args ) {
+		if ( ! $this->minimum_args( $args, 4 ) )
+			return $this->error;
+
+		$this->escape( $args );
+
+		$blog_id        = (int) $args[0];
+		$username       = $args[1];
+		$password       = $args[2];
+		$content_struct = $args[3];
+
+		if ( ! $user = $this->login( $username, $password ) )
+			return $this->error;
+
+		do_action( 'xmlrpc_call', 'wp.editProfile' );
+
+		if ( ! current_user_can( 'edit_user', $user->ID ) )
+			return new IXR_Error( 401, __( 'Sorry, you cannot edit your profile.' ) );
+
+		// holds data of the user
+		$user_data = array();
+		$user_data['ID'] = $user->ID;
+
+		// only set the user details if it was given
+		if ( isset( $content_struct['first_name'] ) )
+			$user_data['first_name'] = $content_struct['first_name'];
+
+		if ( isset( $content_struct['last_name'] ) )
+			$user_data['last_name'] = $content_struct['last_name'];
+
+		if ( isset( $content_struct['url'] ) )
+			$user_data['user_url'] = $content_struct['url'];
+
+		if ( isset( $content_struct['display_name'] ) )
+			$user_data['display_name'] = $content_struct['display_name'];
+
+		if ( isset( $content_struct['nickname'] ) )
+			$user_data['nickname'] = $content_struct['nickname'];
+
+		if ( isset( $content_struct['nicename'] ) )
+			$user_data['user_nicename'] = $content_struct['nicename'];
+
+		if ( isset( $content_struct['bio'] ) )
+			$user_data['description'] = $content_struct['bio'];
+
+		$result = wp_update_user( $user_data );
+
+		if ( is_wp_error( $result ) )
+			return new IXR_Error( 500, $result->get_error_message() );
+
+		if ( ! $result )
+			return new IXR_Error( 500, __( 'Sorry, the user cannot be updated.' ) );
+
+		return true;
 	}
 
 	/**
@@ -883,7 +962,7 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 	 *      - post_status (default: 'draft')
 	 *      - post_title
 	 *      - post_author
-	 *      - post_exerpt
+	 *      - post_excerpt
 	 *      - post_content
 	 *      - post_date_gmt | post_date
 	 *      - post_format
@@ -917,7 +996,7 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 
 		unset( $content_struct['ID'] );
 
-		return $this->_insert_post( $user, $content_struct );
+		return $this->wxm_insert_post( $user, $content_struct );
 	}
 
 	/*
@@ -968,7 +1047,8 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 					return new IXR_Error( 401, __( 'Sorry, you are not allowed to publish posts in this post type' ) );
 				break;
 			default:
-				$post_data['post_status'] = 'draft';
+				if ( ! get_post_status_object( $post_data['post_status'] ) )
+					$post_data['post_status'] = 'draft';
 				break;
 		}
 
@@ -1146,7 +1226,7 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 
 		$post_data = apply_filters( 'xmlrpc_wp_insert_post_data', $post_data, $content_struct );
 
-		$post_ID = wp_insert_post( $post_data, true );
+		$post_ID = $update ? wp_update_post( $post_data, true ) : wp_insert_post( $post_data, true );
 		if ( is_wp_error( $post_ID ) )
 			return new IXR_Error( 500, $post_ID->get_error_message() );
 
@@ -1192,6 +1272,13 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 
 		if ( empty( $post['ID'] ) )
 			return new IXR_Error( 404, __( 'Invalid post ID.' ) );
+
+		if ( isset( $content_struct['if_not_modified_since'] ) ) {
+			// If the post has been modified since the date provided, return an error.
+			if ( mysql2date( 'U', $post['post_modified_gmt'] ) > $content_struct['if_not_modified_since']->getTimestamp() ) {
+				return new IXR_Error( 409, __( 'There is a revision of this post that is more recent.' ) );
+			}
+		}
 
 		// convert the date field back to IXR form
 		$post['post_date'] = $this->_convert_date( $post['post_date'] );
@@ -1328,7 +1415,7 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 		if ( ! current_user_can( $post_type->cap->edit_posts, $post_id ) )
 			return new IXR_Error( 401, __( 'Sorry, you cannot edit this post.' ) );
 
-		return $this->_prepare_post( $post, $fields );
+		return $this->wxm_prepare_post( $post, $fields );
 	}
 
 	/**
@@ -1336,7 +1423,7 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 	 *
 	 * The optional $filter parameter modifies the query used to retrieve posts.
 	 * Accepted keys are 'post_type', 'post_status', 'number', 'offset',
-	 * 'orderby', and 'order'.
+	 * 'orderby', 'order', and 's'.
 	 *
 	 * The optional $fields parameter specifies what fields will be included
 	 * in the response array.
@@ -1403,6 +1490,10 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 				$query['order'] = $filter['order'];
 		}
 
+		if ( isset( $filter['s'] ) ) {
+			$query['s'] = $filter['s'];
+		}
+
 		$posts_list = wp_get_recent_posts( $query );
 
 		if ( ! $posts_list )
@@ -1416,7 +1507,7 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 			if ( ! current_user_can( $post_type->cap->edit_posts, $post['ID'] ) )
 				continue;
 
-			$struct[] = $this->_prepare_post( $post, $fields );
+			$struct[] = $this->wxm_prepare_post( $post, $fields );
 		}
 
 		return $struct;
@@ -1983,22 +2074,218 @@ class wp_xmlrpc_server_ext extends wp_xmlrpc_server {
 		return $struct;
 	}
 
-	function wxm_handle_upload( $struct ) {
-		// prior to WP3.4, 'id' was not included in the struct returned by metaWeblog.newMediaObject/wp.uploadFile.
-		// to add it, we need to find the most recent attachment with post_title equal to the filename.
-		if ( ! in_array( 'id', $struct ) ) {
-			global $wpdb;
-			$id = $wpdb->get_var( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_title='%s' AND post_type='attachment' ORDER BY post_date DESC", $struct['file'] ) );
-			if ( $id !== null ) {
-				$struct['id'] = $id;
-			}
+	/**
+	 * Retrieve revisions for a specific post.
+	 *
+	 * The optional $fields parameter specifies what fields will be included
+	 * in the response array.
+	 *
+	 * @uses wp_get_post_revisions()
+	 * @see wp_getPost() for more on $fields
+	 *
+	 * @param array $args Method parameters. Contains:
+	 *  - int     $blog_id
+	 *  - string  $username
+	 *  - string  $password
+	 *  - int     $post_id
+	 *  - array   $fields
+	 * @return array contains a collection of posts.
+	 */
+	function wxm_wp_getRevisions( $args ) {
+		if ( ! $this->minimum_args( $args, 4 ) )
+			return $this->error;
+
+		$this->escape( $args );
+
+		$blog_id    = (int) $args[0];
+		$username   = $args[1];
+		$password   = $args[2];
+		$post_id    = (int) $args[3];
+
+		if ( isset( $args[4] ) )
+			$fields = $args[4];
+		else
+			$fields = apply_filters( 'xmlrpc_default_revision_fields', array( 'post_date', 'post_date_gmt' ), 'wp.getRevisions' );
+
+		if ( ! $user = $this->login( $username, $password ) )
+			return $this->error;
+
+		do_action( 'xmlrpc_call', 'wp.getRevisions' );
+
+		if ( ! $post = get_post( $post_id ) )
+			return new IXR_Error( 404, __( 'Invalid post ID' ) );
+
+		if ( ! current_user_can( 'edit_post', $post_id ) )
+			return new IXR_Error( 401, __( 'Sorry, you are not allowed to edit posts.' ) );
+
+		// Check if revisions are enabled.
+		if ( ! WP_POST_REVISIONS || ! post_type_supports( $post->post_type, 'revisions' ) )
+			return new IXR_Error( 401, __( 'Sorry, revisions are disabled.' ) );
+
+		$revisions = wp_get_post_revisions( $post_id );
+
+		if ( ! $revisions )
+			return array();
+
+		$struct = array();
+
+		foreach ( $revisions as $revision ) {
+			if ( ! current_user_can( 'read_post', $revision->ID ) )
+				continue;
+
+			// Skip autosaves
+			if ( wp_is_post_autosave( $revision ) )
+				continue;
+
+			$struct[] = $this->wxm_prepare_post( get_object_vars( $revision ), $fields );
 		}
+
 		return $struct;
+	}
+
+	/**
+	 * Restore a post revision
+	 *
+	 * @uses wp_restore_post_revision()
+	 *
+	 * @param array $args Method parameters. Contains:
+	 *  - int     $blog_id
+	 *  - string  $username
+	 *  - string  $password
+	 *  - int     $post_id
+	 * @return bool false if there was an error restoring, true if success.
+	 */
+	function wxm_wp_restoreRevision( $args ) {
+		if ( ! $this->minimum_args( $args, 3 ) )
+			return $this->error;
+
+		$this->escape( $args );
+
+		$blog_id     = (int) $args[0];
+		$username    = $args[1];
+		$password    = $args[2];
+		$revision_id = (int) $args[3];
+
+		if ( ! $user = $this->login( $username, $password ) )
+			return $this->error;
+
+		do_action( 'xmlrpc_call', 'wp.restoreRevision' );
+
+		if ( ! $revision = wp_get_post_revision( $revision_id ) )
+			return new IXR_Error( 404, __( 'Invalid post ID' ) );
+
+		if ( wp_is_post_autosave( $revision ) )
+			return new IXR_Error( 404, __( 'Invalid post ID' ) );
+
+		if ( ! $post = get_post( $revision->post_parent ) )
+			return new IXR_Error( 404, __( 'Invalid post ID' ) );
+
+		if ( ! current_user_can( 'edit_post', $revision->post_parent ) )
+			return new IXR_Error( 401, __( 'Sorry, you cannot edit this post.' ) );
+
+		// Check if revisions are disabled.
+		if ( ! WP_POST_REVISIONS || ! post_type_supports( $post->post_type, 'revisions' ) )
+			return new IXR_Error( 401, __( 'Sorry, revisions are disabled.' ) );
+
+		$post = wp_restore_post_revision( $revision_id );
+
+		return (bool) $post;
+	}
+
+	/**
+	 * Uploads a file, following your settings.
+	 *
+	 * @param array $args Method parameters.
+	 * @return array
+	 */
+	function wxm_wp_uploadFile($args) {
+		global $wpdb;
+
+		$blog_ID     = (int) $args[0];
+		$username  = $wpdb->escape($args[1]);
+		$password   = $wpdb->escape($args[2]);
+		$data        = $args[3];
+
+		$name = sanitize_file_name( $data['name'] );
+		$type = $data['type'];
+		$bits = $data['bits'];
+
+		if ( !$user = $this->login($username, $password) )
+			return $this->error;
+
+		do_action('xmlrpc_call', 'metaWeblog.newMediaObject');
+
+		if ( !current_user_can('upload_files') ) {
+			$this->error = new IXR_Error( 401, __( 'You do not have permission to upload files.' ) );
+			return $this->error;
+		}
+
+		if ( $upload_err = apply_filters( 'pre_upload_error', false ) )
+			return new IXR_Error(500, $upload_err);
+
+		if ( !empty($data['overwrite']) && ($data['overwrite'] == true) ) {
+			// Get postmeta info on the object.
+			$old_file = $wpdb->get_row("
+				SELECT ID
+				FROM {$wpdb->posts}
+				WHERE post_title = '{$name}'
+					AND post_type = 'attachment'
+			");
+
+			// Delete previous file.
+			wp_delete_attachment($old_file->ID);
+
+			// Make sure the new name is different by pre-pending the
+			// previous post id.
+			$filename = preg_replace('/^wpid\d+-/', '', $name);
+			$name = "wpid{$old_file->ID}-{$filename}";
+		}
+
+		$upload = wp_upload_bits($name, null, $bits);
+		if ( ! empty($upload['error']) ) {
+			$errorString = sprintf(__('Could not write file %1$s (%2$s)'), $name, $upload['error']);
+			return new IXR_Error(500, $errorString);
+		}
+		// Construct the attachment array
+		$post_id = 0;
+		if ( ! empty( $data['post_id'] ) ) {
+			$post_id = (int) $data['post_id'];
+
+			if ( ! current_user_can( 'edit_post', $post_id ) )
+				return new IXR_Error( 401, __( 'Sorry, you cannot edit this post.' ) );
+		}
+		$attachment = array(
+			'post_title' => $name,
+			'post_content' => '',
+			'post_type' => 'attachment',
+			'post_parent' => $post_id,
+			'post_mime_type' => $type,
+			'guid' => $upload[ 'url' ]
+		);
+
+		// Save the data
+		$id = wp_insert_attachment( $attachment, $upload[ 'file' ], $post_id );
+		wp_update_attachment_metadata( $id, wp_generate_attachment_metadata( $id, $upload['file'] ) );
+
+		do_action( 'xmlrpc_call_success_mw_newMediaObject', $id, $args );
+
+		$struct = array(
+			'id'   => strval( $id ),
+			'file' => $name,
+			'url'  => $upload[ 'url' ],
+			'type' => $type
+		);
+		return apply_filters( 'wp_handle_upload', $struct, 'upload' );
 	}
 
 	function wxm_blog_options( $options ) {
 		$wp34_options = array(
 			// Read only options
+			'home_url'          => array(
+				 'desc'         => __( 'Home URL' ),
+				'readonly'      => true,
+				'option'        => 'home'
+			),
 			'image_default_link_type' => array(
 				'desc'          => __( 'Image default link type' ),
 				'readonly'      => true,
