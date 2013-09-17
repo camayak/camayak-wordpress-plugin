@@ -13,7 +13,10 @@ if ( defined( 'XMLRPC_REQUEST' ) ) {
 
 	function xrdw_clean( $buffer ) {
 		// use PHP's trim function to remove leading and trailing whitespace
-		return trim( $buffer );
+		$trimmed = trim ( $buffer );
+		// update the Content-Length value with the new buffer length.
+		header( 'Content-Length:'.strlen( $trimmed ) );
+		return $trimmed;
 	}
 
 	function xrdw_start() {
