@@ -9,6 +9,10 @@ This plugin facilitates publishing and archiving functionality of the Camayak.co
 
 == Changelog ==
 
+= 1.0.8 =
+
+* Fixing an issue with the dewhitespacer plugin, it's imperative that the Content-Length header is updated with the trimmed response length.
+
 = 1.0.7 =
 
 * Upgrading to `wp-xmlrpc-modernization` v0.9 which fixes some bugs and aligns methods to 3.5 core.
