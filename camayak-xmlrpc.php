@@ -117,7 +117,7 @@ class camayak_xmlrpc {
 		$password           = $args[2];
 		$post_ID            = (int) $args[3];
 		$content_struct     = $args[4];
-		$append             = $args[5] ? true : false;
+		$append             = isset( $args[5] ) ? true : false;
 
 		if ( ! $user = $wp_xmlrpc_server->login( $username, $password ) )
 			return $wp_xmlrpc_server->error;
