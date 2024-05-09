@@ -37,6 +37,11 @@ class camayak_admin_notices {
 						echo '" style="float: left; margin-right: 8px" alt="" />This post is being produced and archived in Camayak. <a href="';
 						echo 'https://' . $cmyk_org_slug . '.camayak.com/#/packages/' . $cmyk_package_uuid;;
 						echo '">Click here to edit this assignment in Camayak</a></p></div>';
+						echo '<script>';
+						echo '	( function( wp ) {';
+						echo '		wp.data.dispatch("core/notices").createNotice("error","This post is being produced and archived in Camayak.");';
+						echo '	} )( window.wp );';
+						echo '</script>';
 
 						// hide these custom fields from the UI to prevent tampering
 						add_filter( 'is_protected_meta', array( $this, 'is_protected_meta' ), 1, 2 );
