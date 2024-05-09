@@ -21,7 +21,7 @@ class camayak_admin_notices {
 
 	function admin_post_notices( ) {
 		$screen = get_current_screen();
-
+		
 		if ( $screen->id == 'post' ) {
 			global $post_ID;
 			if ( isset( $post_ID ) ) {
@@ -31,15 +31,22 @@ class camayak_admin_notices {
 
 					$cmyk_org_slug = get_post_meta( $post_ID, $this->org_field_name, true );
 					if ( ! empty( $cmyk_org_slug ) ) {
+						$camayak_url = 'https://' . $cmyk_org_slug . '.camayak.com/#/packages/' . $cmyk_package_uuid;
+						$camayak_link_text = 'Edit this assignment in Camayak';
+						$message = 'This post is being produced and archived in Camayak. <a href="' . $camayak_url . '">' . $camayak_link_text . '</a>';
 						// display a warning message with link to assignment overview page in Camayak
 						echo '<div class="error"><p style="height: 20px; line-height: 20px"><img src="';
 						echo plugins_url( 'images/camayak_icon.png', __FILE__ );
-						echo '" style="float: left; margin-right: 8px" alt="" />This post is being produced and archived in Camayak. <a href="';
-						echo 'https://' . $cmyk_org_slug . '.camayak.com/#/packages/' . $cmyk_package_uuid;;
-						echo '">Click here to edit this assignment in Camayak</a></p></div>';
+						echo '" style="float: left; margin-right: 8px" alt="" />' . $message . '</p></div>';
 						echo '<script>';
 						echo '	( function( wp ) {';
-						echo '		wp.data.dispatch("core/notices").createNotice("error","This post is being produced and archived in Camayak.");';
+						echo '		wp.data.dispatch("core/notices").createNotice(';
+						echo '			"error", "This post is being produced and archived in Camayak.",';
+						echo '			{';
+						echo '				isDismissible: false,';
+						echo '				actions: [{url: "' . $camayak_url . '", label: "' . $camayak_link_text . '",},],';
+						echo '			}';
+						echo '		);';
 						echo '	} )( window.wp );';
 						echo '</script>';
 
