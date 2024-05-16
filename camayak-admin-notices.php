@@ -21,6 +21,7 @@ class camayak_admin_notices {
 
 	function admin_post_notices( ) {
 		$screen = get_current_screen();
+
 		if ( $screen->id == 'post' ) {
 			global $post_ID;
 			if ( isset( $post_ID ) ) {
