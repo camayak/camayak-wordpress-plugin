@@ -2,7 +2,7 @@
 Contributors: maxcutler
 Tags: xmlrpc, xml-rpc, api
 Requires at least: 3.3
-Tested up to: 3.4
+Tested up to: 3.5
 Stable tag: trunk
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -25,9 +25,15 @@ New Methods:
 * wp.newUser - create a new user
 * wp.editUser - edit user information
 * wp.deleteUser - delete a specfic user
+
+3.5 Methods for pre-3.5 sites:
+
 * wp.getUser - get information about a specific user
 * wp.getUsers - retrieve a list of users
-* wp.getUserInfo - get information about the requesting user
+* wp.getProfile - retrieve information about the requesting user
+* wp.editProfile - edit the profile of the requesting user
+* wp.getRevisions - retrieve revisions for a specific post
+* wp.restoreRevision - restore a post revision
 
 3.4 Methods for pre-3.4 sites:
 
@@ -47,6 +53,17 @@ New Methods:
 * wp.getTerms - get a list of term associated with a taxonomy
 
 == Changelog ==
+
+= 0.9 =
+* Alignment with WordPress core version of wp.getUser and wp.getUsers.
+* Renamed wp.getUserInfo to wp.getProfile to match 3.5 core.
+* Added wp.editProfile to match WordPress core.
+* Added wp.getRevisions and wp.restoreRevision methods to match 3.5 core.
+* Added 'post_id" parameter to wp.uploadFile.
+* Added 's' parameter to wp.getPosts.
+* Added 'if_not_modified_since' parameter to wp.editPost.
+* Added 'post_parent', 'guid', 'post_mime_type' and 'menu_order' to _prepare_post.
+* Fixed several small bugs in wp.editPost.
 
 = 0.8.2 =
 * Added 'attachment_id' to wp.getMediaLibrary and wp.getMediaItem to match 3.4 core.
