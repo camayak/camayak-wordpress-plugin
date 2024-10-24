@@ -9,6 +9,10 @@ This plugin facilitates publishing and archiving functionality of the Camayak.co
 
 == Changelog ==
 
+= 1.0.10 =
+
+* Fix "Edited in Camayak" banner message when using the Block Editor.
+
 = 1.0.9 =
 
 * Syntax improvements to prevent `E_NOTICE`/`E_DEPRECATED` errors.
